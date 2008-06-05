@@ -1,5 +1,5 @@
 #!/usr/bin/ruby
-#test
+
 require 'optparse'
 require 'ostruct'
 require 'open3'
@@ -99,15 +99,7 @@ end
 #		class encopts
 #		class filters[]
 
-class Options
-  def instance_variable_pair(i)
-    [i[1..-1], instance_variable_get(i)].join('=')
-  end
-
-  def to_string
-    instance_variables.map { |i| instance_variable_pair(i) }.join(':')
-  end
-  
+class MP4Struct
   def method_missing(var, val)
 	name = var.id2name
 	name.chop! if name =~ /\=$/ 
@@ -115,14 +107,38 @@ class Options
   end
 end
 
-class X264Options < Options
-  def initialize
-    @global_header = 1
-    @vbv_maxrate = 1500
+class Options < MP4Struct
+  def instance_variable_pair(i)
+    [i[1..-1], instance_variable_get(i)].join('=')
+  end
+
+  def to_string
+    instance_variables.map { |i| instance_variable_pair(i) }.join(':')
   end
 end
 
-class VideoFilter
+class X264Options < Options
+  def initialize
+    @global_header = 1
+    @vbv_bufsize = 2000
+	@keyint = 500
+	@threads = "auto"
+	@cabac = 0
+	@psnr = 1
+	@subq=6
+	@me=umh
+  end
+end
+
+class IPodX264Options < X264Options
+  def initialize
+    @vbv_maxrate=1500
+	@bitrate=1200
+	@level=3
+  end
+end
+
+class VideoFilter < MP4Struct
   def initialize
     @name = ""
     @options = Options.new
@@ -132,12 +148,6 @@ class VideoFilter
     "-vf " + [@name, @options.to_string].join('=')
   end
 
-  def method_missing(var, val)
-	name = var.id2name
-	name.chop! if name =~ /\=$/ 
-	instance_variable_set('@' + name, val)
-  end
-  
   def options
 	@options
   end
