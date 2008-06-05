@@ -58,9 +58,10 @@ class OptionParser
 		options = OpenStruct.new
 		options.twopass = false
 		options.profile = "ipod"
+		options.bitrate = 0
 		
 		opts = OptionParser.new do |opts|
-			opts.banner	= "Usage: mp4maker [-2] -[p encoder profile] {input file(s)}"
+			opts.banner	= "Usage: mp4maker.rb [options] {input file(s)}"
 			
 			opts.separator ""
 			opts.separator "Specific options:"
@@ -71,6 +72,15 @@ class OptionParser
 
 			opts.on("-p", "--profile [encoder profile]", "Selected encoder profile") do |prof|
 				options.profile = prof
+			end
+			
+			opts.on("-b", "--bit-rate [bit-rate]", "Bit-rate in kilobits") do |rate|
+				options.bitrate = rate
+			end
+
+			opts.on_tail("-h", "--help", "Show this message") do
+				puts opts
+				exit
 			end
 		end.parse!(args)
 		options
@@ -84,11 +94,54 @@ if options.twopass
 	puts "Two-pass encoding enabled."
 end
 
-# audio (aac): -oac faac -faacopts mpeg=4:object=2:br=128:raw=yes -af lavcresample=44100 -of lavf -lavfopts format=mp4
-# video (ipod): -ovc x264 -x264encopts global_header:vbv_maxrate=1500:vbv_bufsize=2000:keyint=500:threads=auto:subq=6:me=umh:cabac=0:psnr=yes:bitrate=1200:level=3 -vf harddup -vf scale=w=640:h=-1:noup=1
-# video (appletv-hd): -ovc x264 -x264encopts global_header:vbv_maxrate=5000:vbv_bufsize=2000:bitrate=2500:keyint=500:threads=auto:bframes=0:ref=1:subq=6:me=umh:no-fast-pskip=1:trellis=2:cabac=0:level=3.1 -vf harddup -vf scale=w=1280:h=-1:noup=1
+# class video
+#		codec = 264
+#		class encopts
+#		class filters[]
 
-# mencoder  
+class Options
+  def instance_variable_pair(i)
+    [i[1..-1], instance_variable_get(i)].join('=')
+  end
+
+  def to_string
+    instance_variables.map { |i| instance_variable_pair(i) }.join(':')
+  end
+  
+  def method_missing(var, val)
+	name = var.id2name
+	name.chop! if name =~ /\=$/ 
+	instance_variable_set('@' + name, val)
+  end
+end
+
+class X264Options < Options
+  def initialize
+    @global_header = 1
+    @vbv_maxrate = 1500
+  end
+end
+
+class VideoFilter
+  def initialize
+    @name = ""
+    @options = Options.new
+  end
+	
+  def to_string
+    "-vf " + [@name, @options.to_string].join('=')
+  end
+
+  def method_missing(var, val)
+	name = var.id2name
+	name.chop! if name =~ /\=$/ 
+	instance_variable_set('@' + name, val)
+  end
+  
+  def options
+	@options
+  end
+end
 
 video = Hash.new()
 video['ipod'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=1500:vbv_bufsize=2000:keyint=500:threads=auto:subq=6:me=umh:cabac=0:psnr=yes:bitrate=1200:level=3 -vf harddup -vf scale=w=640:h=-1:noup=1'
@@ -99,7 +152,7 @@ video['appletv-hd-pass1'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=50
 video['appletv-hd-pass2'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=5000:vbv_bufsize=2000:bitrate=2500:keyint=500:threads=auto:bframes=0:frameref=1:subq=5:me=umh:partitions=all:no-fast-pskip=1:trellis=2:cabac=0:level=3.1:pass=2 -vf harddup -vf scale=w=1280:h=-1:noup=1'
 
 audio = Hash.new()
-audio['aac'] = '-oac faac -faacopts mpeg=4:object=2:br=128:raw=yes -af lavcresample=44100 -of lavf -lavfopts format=mp4'
+audio['aac'] = '-oac faac -faacopts mpeg=4:object=2:br=128:raw=yes -af lavcresample=44100 -of lavf -lavfopts format=mp4 -a52drc 1'
 
 ARGV.each do |inputFile|
 	outputFile = inputFile.gsub(/\.[^.]*$/, '.m4v')
@@ -109,9 +162,14 @@ ARGV.each do |inputFile|
 		commandline='nice mencoder "' + inputFile + '" ' + audio['aac'] + ' ' + video[options.profile] + ' -o "' + outputFile + '"'
 	end
 	
+	if options.bitrate != 0
+		commandline = commandline.gsub(/bitrate=[^:]*/, 'bitrate=' + options.bitrate)
+		puts 'Bitrate: ' + options.bitrate
+	end
+	
 	puts "Encoding " + outputFile
 	safe_execute do
-#		puts commandline
+		puts commandline
 		execute_mencoder(commandline)
 	end
 end
