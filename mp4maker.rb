@@ -100,66 +100,79 @@ end
 #		class filters[]
 
 class MP4Struct
-  def method_missing(var, val)
-	name = var.id2name
-	name.chop! if name =~ /\=$/ 
-	instance_variable_set('@' + name, val)
-  end
+	def method_missing(var, val)
+		name = var.id2name
+		name.chop! if name =~ /\=$/ 
+		instance_variable_set('@' + name, val)
+	end
 end
 
 class Options < MP4Struct
-  def instance_variable_pair(i)
-    [i[1..-1], instance_variable_get(i)].join('=')
-  end
+	def instance_variable_pair(i)
+		[i[1..-1], instance_variable_get(i)].join('=')
+	end
 
-  def to_string
-    instance_variables.map { |i| instance_variable_pair(i) }.join(':')
-  end
+	def to_string
+		instance_variables.map { |i| instance_variable_pair(i) }.join(':')
+	end
 end
 
 class X264Options < Options
-  def initialize
-    @global_header = 1
-    @vbv_bufsize = 2000
-	@keyint = 500
-	@threads = "auto"
-	@cabac = 0
-	@psnr = 1
-	@subq=6
-	@me=umh
-  end
+	def initialize
+		@global_header = 1
+		@vbv_bufsize = 2000
+		@keyint = 500
+		@threads = 'auto'
+		@cabac = 0
+		@psnr = 1
+		@subq = 6
+		@me = 'umh'
+	end
 end
 
 class IPodX264Options < X264Options
-  def initialize
-    @vbv_maxrate=1500
-	@bitrate=1200
-	@level=3
-  end
+	def initialize
+		super
+		@vbv_maxrate = 1500
+		@bitrate = 1200
+		@level = 3
+	end
+end
+
+class AppleTVHDX264Options < X264Options
+	def initialize
+		super
+		@vbv_maxrate = 5000
+		@bitrate = 2500
+		@level = 3.1
+		@bframes = 0
+		@no_fast_pskip = 1
+		@trellis = 2
+	end
 end
 
 class VideoFilter < MP4Struct
-  def initialize
-    @name = ""
-    @options = Options.new
-  end
+	def initialize
+		@name = ""
+		@options = Options.new
+	end
 	
-  def to_string
-    "-vf " + [@name, @options.to_string].join('=')
-  end
+	def to_string
+		"-vf " + [@name, @options.to_string].join('=')
+	end
 
-  def options
-	@options
-  end
+	def options
+		@options
+	end
 end
 
 video = Hash.new()
-video['ipod'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=1500:vbv_bufsize=2000:keyint=500:threads=auto:subq=6:me=umh:cabac=0:psnr=yes:bitrate=1200:level=3 -vf harddup -vf scale=w=640:h=-1:noup=1'
-video['ipod-pass1'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=1500:vbv_bufsize=2000:keyint=500:threads=auto:subq=1:cabac=0:psnr=yes:bitrate=1000:level=3:pass=1 -vf harddup -vf scale=w=640:h=-1:noup=1'
-video['ipod-pass2'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=1500:vbv_bufsize=2000:keyint=500:threads=auto:subq=6:me=umh:cabac=0:psnr=yes:bitrate=1000:level=3:pass=2 -vf harddup -vf scale=w=640:h=-1:noup=1'
-video['appletv-hd'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=5000:vbv_bufsize=2000:bitrate=2500:keyint=500:threads=auto:bframes=0:ref=1:subq=6:me=umh:no-fast-pskip=1:trellis=2:cabac=0:level=3.1 -vf harddup -vf scale=w=1280:h=-1:noup=1'
-video['appletv-hd-pass1'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=5000:vbv_bufsize=2000:bitrate=2500:keyint=500:threads=auto:bframes=0:frameref=1:subq=1:no-fast-pskip=1:trellis=2:cabac=0:level=3.1:pass=1 -vf harddup -vf scale=w=1280:h=-1:noup=1'
-video['appletv-hd-pass2'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=5000:vbv_bufsize=2000:bitrate=2500:keyint=500:threads=auto:bframes=0:frameref=1:subq=5:me=umh:partitions=all:no-fast-pskip=1:trellis=2:cabac=0:level=3.1:pass=2 -vf harddup -vf scale=w=1280:h=-1:noup=1'
+video['ipod'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=1500:vbv_bufsize=2000:keyint=500:threads=auto:subq=6:me=umh:cabac=0:psnr=yes:bitrate=1200:level=3 -vf harddup -vf scale=w=640:h=-10:noup=1'
+video['ipod-pass1'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=1500:vbv_bufsize=2000:keyint=500:threads=auto:subq=1:cabac=0:psnr=yes:bitrate=1000:level=3:pass=1 -vf harddup -vf scale=w=640:h=-10:noup=1'
+video['ipod-pass2'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=1500:vbv_bufsize=2000:keyint=500:threads=auto:subq=6:me=umh:cabac=0:psnr=yes:bitrate=1000:level=3:pass=2 -vf harddup -vf scale=w=640:h=-10:noup=1'
+video['appletv-hd'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=5000:vbv_bufsize=2000:bitrate=2500:keyint=500:threads=auto:bframes=0:ref=1:subq=6:me=umh:no-fast-pskip=1:trellis=2:cabac=0:level=3.1 -vf harddup -vf scale=w=1280:h=-10:noup=1'
+video['appletv-hd-pass1'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=5000:vbv_bufsize=2000:bitrate=2500:keyint=500:threads=auto:bframes=0:frameref=1:subq=1:no-fast-pskip=1:trellis=2:cabac=0:level=3.1:pass=1 -vf harddup -vf scale=w=1280:h=-10:noup=1'
+video['appletv-hd-pass2'] = '-ovc x264 -x264encopts global_header:vbv_maxrate=5000:vbv_bufsize=2000:bitrate=2500:keyint=500:threads=auto:bframes=0:frameref=1:subq=5:me=umh:partitions=all:no-fast-pskip=1:trellis=2:cabac=0:level=3.1:pass=2 -vf harddup -vf scale=w=1280:h=-10:noup=1'
 
 audio = Hash.new()
 audio['aac'] = '-oac faac -faacopts mpeg=4:object=2:br=128:raw=yes -af lavcresample=44100 -of lavf -lavfopts format=mp4 -a52drc 1'
