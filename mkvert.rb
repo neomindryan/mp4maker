@@ -19,12 +19,33 @@ def quick_encode(*args)
     filesize = `BLOCKSIZE=1048576 du -s "#{input}"`
     filesize = /(\d+).*/.match(filesize)[1]
     raise "Couldn't determine size of #{input}" unless /\d+/.match(filesize)
+
+    pcm_input = nil
+    # extract the audio to PCM with ffmpeg first because sometimes HandBrakeCLI has problems
+#     pcm_input = "#{input}-temp.avi"
+#     command = <<-EOS
+#       nice -n 19 ffmpeg -i "#{input}" -acodec adpcm_ms -vcodec copy "#{pcm_input}"
+#     EOS
+#     input = pcm_input # we no longer care about the original.
+#     command = command.strip
+#     # log.info "Extracting audio to PCM with ffmpeg..."
+#     puts "Prepping with ffmpeg using: #{command}"
+#     system(command)
+
+    # Now transcode the video and re-mux / transcode in the audio extracted by ffmpeg
     command = <<-EOS
-      nice /usr/local/bin/HandBrakeCLI -i "#{input}" -o "#{output}" --crop 0:0:0:0 -X 720 -Y 480 -e x264 -S #{filesize} -2 -T -P -x 'vbv_maxrate=4500:vbv_bufsize=3000:threads=auto:ref=6:subq=6:me=umh:no-fast-pskip=1:level=3.0:mixed-refs=1:merange=24:direct=auto:analyse=all:cabac=0'
+      nice -n 19 /usr/local/bin/HandBrakeCLI -i "#{input}" -o "#{output}" --crop 0:0:0:0 -X 720 -Y 480 -e x264 -S #{filesize} -2 -T -P \
+        -x 'vbv_maxrate=4500:vbv_bufsize=3000:threads=auto:ref=6:subq=6:me=umh:no-fast-pskip=1:level=3.0:mixed-refs=1:merange=24:direct=auto:analyse=all:cabac=0'
     EOS
     command = command.strip
     # puts "doing it!: #{command}"
     system(command) # backticks wont work here.
+
+    # if we're using the intermediate pcm-audio step, clean up after ourselves.
+    if pcm_input
+      # log.info "Cleaning up ffmpeg intermediate step..."
+      File.delete(pcm_input)
+    end
   end # args.each
 end # quick_encode
 
