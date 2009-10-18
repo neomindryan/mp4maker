@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 # Convert an MKV with softsubs to an M4V file with softsubs.
-# Dependencie:
+# Dependencies:
 #   ass2srt.pl (if you have MKV files with no SRT track)
 #     http://blog.t-times.net/ada/space/start/2006-07-31/2/ass2srt.pl
 #   subler (for muxing subtitles into mp4)
@@ -34,7 +34,7 @@ def quick_encode(*args)
 
     # Now transcode the video and re-mux / transcode in the audio extracted by ffmpeg
     command = <<-EOS
-      nice -n 19 /usr/local/bin/HandBrakeCLI -i "#{input}" -o "#{output}" --crop 0:0:0:0 -X 720 -Y 480 -e x264 -S #{filesize} -2 -T -P \
+      nice -n 19 /usr/local/bin/HandBrakeCLI -i "#{input}" -o "#{output}" --crop 0:0:0:0 -X 720 -Y 480 -e x264 -S #{filesize} -2 -T --loose-anamorphic \
         -x 'vbv_maxrate=4500:vbv_bufsize=3000:threads=auto:ref=6:subq=6:me=umh:no-fast-pskip=1:level=3.0:mixed-refs=1:merange=24:direct=auto:analyse=all:cabac=0'
     EOS
     command = command.strip
