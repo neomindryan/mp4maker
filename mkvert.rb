@@ -34,8 +34,8 @@ def quick_encode(*args)
 
     # Now transcode the video and re-mux / transcode in the audio extracted by ffmpeg
     command = <<-EOS
-      nice -n 19 /usr/local/bin/HandBrakeCLI -i "#{input}" -o "#{output}" --crop 0:0:0:0 -X 720 -Y 480 -e x264 -S #{filesize} -2 -T --loose-anamorphic \
-        -x 'vbv_maxrate=4500:vbv_bufsize=3000:threads=auto:ref=6:subq=6:me=umh:no-fast-pskip=1:level=3.0:mixed-refs=1:merange=24:direct=auto:analyse=all:cabac=0'
+      nice -n 19 /usr/local/bin/HandBrakeCLI -i "#{input}" -o "#{output}" --crop 0:0:0:0 -X 1280 -Y 720 -e x264 -S #{filesize} -2 -T --loose-anamorphic \
+        -x 'vbv_maxrate=4500:vbv_bufsize=3000:threads=auto:ref=6:subq=6:me=umh:no-fast-pskip=1:level=3.0:mixed-refs=1:merange=24:direct=auto:analyse=all:cabac=0:bframes=0'
     EOS
     command = command.strip
     # puts "doing it!: #{command}"
@@ -61,7 +61,7 @@ end
 
 mkv_file = ARGV[0]
 m4v_file = ARGV[1]
-unless mkv_file 
+unless mkv_file
   log.error "Syntax:\n\tmkvert <mkv_file[.mkv]> [m4v_file[.m4v]]"
   exit
 end
@@ -82,6 +82,8 @@ elsif m4v_file.nil? # Transcode the m4v file if one wasn't specified.
   log.info "Transcoding mkv file to m4v"
   quick_encode(mkv_file)
 end
+
+##### TODO extract any chapter info and import it
 
 ##### Extract the subtitles and convert them to SRT format if necessary
 log.info "Searching for SRT track..."
