@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 # Convert an MKV with softsubs to an M4V file with softsubs.
+# OR just convert an AVI to an M4V
 # Dependencies:
 #   ass2srt.pl (if you have MKV files with no SRT track)
 #     http://blog.t-times.net/ada/space/start/2006-07-31/2/ass2srt.pl
@@ -59,14 +60,15 @@ if ARGV.delete("-s")
   log.level = Logger::ERROR
 end
 
-mkv_file = ARGV[0]
+source_file = ARGV[0]
 m4v_file = ARGV[1]
-unless mkv_file
-  log.error "Syntax:\n\tmkvert <mkv_file[.mkv]> [m4v_file[.m4v]]"
+unless source_file
+  log.error "Syntax:\n\tmkvert <source_file[.mkv|avi]> [m4v_file[.m4v]]"
   exit
 end
-mkv_base_name = mkv_file.gsub(/\.mkv$/, '')
-mkv_file += ".mkv" if mkv_base_name == mkv_file
+match = /(.*)\.(mkv|avi)/.match(source_file)
+source_base_name = match[1]
+source_type = match[2].downcase
 if m4v_file
   m4v_base_name = m4v_file.gsub(/\.m4v$/, '')
   m4v_file += ".m4v" if m4v_base_name == m4v_file
@@ -77,65 +79,67 @@ if m4v_file && !File.exists?(m4v_file)
   log.error("Unable to find .M4V file: #{m4v_file}")
   exit
 elsif m4v_file.nil? # Transcode the m4v file if one wasn't specified.
-  m4v_base_name = mkv_base_name
+  m4v_base_name = source_base_name
   m4v_file = m4v_base_name + ".m4v"
-  log.info "Transcoding mkv file to m4v"
-  quick_encode(mkv_file)
+  log.info "Transcoding #{source_type} file to m4v"
+  quick_encode(source_file)
 end
 
-##### TODO extract any chapter info and import it
+if source_type == "mkv"
+  ##### TODO extract any chapter info and import it
 
-##### Extract the subtitles and convert them to SRT format if necessary
-log.info "Searching for SRT track..."
-desired_track = `mkvmerge --identify "#{mkv_file}" | grep 'S_TEXT/UTF8'`
-if desired_track.nil? || /Track ID (\d+)/.match(desired_track).nil?
-  log.info "No SRT track found, searching for ASS"
-  desired_track = `mkvmerge --identify "#{mkv_file}" | grep 'S_TEXT/ASS'`
+  ##### Extract the subtitles and convert them to SRT format if necessary
+  log.info "Searching for SRT track..."
+  desired_track = `mkvmerge --identify "#{source_file}" | grep 'S_TEXT/UTF8'`
   if desired_track.nil? || /Track ID (\d+)/.match(desired_track).nil?
-    log.error "No subtitle track found in #{mkv_file}"
-    exit
+    log.info "No SRT track found, searching for ASS"
+    desired_track = `mkvmerge --identify "#{source_file}" | grep 'S_TEXT/ASS'`
+    if desired_track.nil? || /Track ID (\d+)/.match(desired_track).nil?
+      log.error "No subtitle track found in #{source_file}"
+      exit
+    end
+    subtitle_type = "ASS"
+  else
+    subtitle_type = "SRT"
   end
-  subtitle_type = "ASS"
-else
-  subtitle_type = "SRT"
+  desired_track = /Track ID (\d+)/.match(desired_track)[1].to_i
+  desired_track = desired_track.to_i
+
+  srt_file = "#{source_base_name}.srt"
+  if subtitle_type == "ASS"
+    ass_file = "#{source_base_name}.ass"
+    log.info "Exporting from ASS track #{desired_track} ..."
+    extract_command = "mkvextract tracks \"#{source_file}\" #{desired_track}:\"#{ass_file}\""
+    `#{extract_command}`
+    if !File.exists?(ass_file)
+      log.error "Unable to export file using command #{extract_command}"
+      exit
+    end
+    log.info "Converting subtitles from ASS to SRT..."
+    `ass2srt.pl "#{ass_file}"`
+    if !File.exists?(srt_file)
+      log.error "Unable to convert ASS file to SRT"
+      exit
+    end
+  elsif subtitle_type == "SRT"
+    log.info "Exporting SRT from track #{desired_track} ..."
+    extract_command = "mkvextract tracks \"#{source_file}\" #{desired_track}:\"#{srt_file}\""
+    `#{extract_command}`
+    if !File.exists?(srt_file)
+      log.error "Unable to export file using command #{extract_command}"
+      exit
+    end
+  end # if subtitle_type == "SRT"
+
+  ##### Mux the M4V and SRT files
+  log.info "Muxing subtitles into .M4V file '#{m4v_file}' ..."
+  `SublerCLI -i "#{m4v_file}" -s "#{srt_file}"`
+
+  ##### Cleanup
+  if subtitle_type == "ASS"
+    log.info "Cleaning up ASS file..."
+    File.delete(ass_file)
+  end
+  log.info "Cleaning up SRT file..."
+  File.delete(srt_file)
 end
-desired_track = /Track ID (\d+)/.match(desired_track)[1].to_i
-desired_track = desired_track.to_i
-
-srt_file = "#{mkv_base_name}.srt"
-if subtitle_type == "ASS"
-  ass_file = "#{mkv_base_name}.ass"
-  log.info "Exporting from ASS track #{desired_track} ..."
-  extract_command = "mkvextract tracks \"#{mkv_file}\" #{desired_track}:\"#{ass_file}\""
-  `#{extract_command}`
-  if !File.exists?(ass_file)
-    log.error "Unable to export file using command #{extract_command}"
-    exit
-  end
-  log.info "Converting subtitles from ASS to SRT..."
-  `ass2srt.pl "#{ass_file}"`
-  if !File.exists?(srt_file)
-    log.error "Unable to convert ASS file to SRT"
-    exit
-  end
-elsif subtitle_type == "SRT"
-  log.info "Exporting SRT from track #{desired_track} ..."
-  extract_command = "mkvextract tracks \"#{mkv_file}\" #{desired_track}:\"#{srt_file}\""
-  `#{extract_command}`
-  if !File.exists?(srt_file)
-    log.error "Unable to export file using command #{extract_command}"
-    exit
-  end
-end # if subtitle_type == "SRT"
-
-##### Mux the M4V and SRT files
-log.info "Muxing subtitles into .M4V file '#{m4v_file}' ..."
-`SublerCLI -i "#{m4v_file}" -s "#{srt_file}"`
-
-##### Cleanup
-if subtitle_type == "ASS"
-  log.info "Cleaning up ASS file..."
-  File.delete(ass_file)
-end
-log.info "Cleaning up SRT file..."
-File.delete(srt_file)
