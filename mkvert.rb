@@ -31,21 +31,19 @@ def quick_encode(input, quality=19)
   # puts "Prepping with ffmpeg using: #{command}"
   # system(command)
 
-  x264opts = { # these will be passed to the '-x' argument of HandBrakeCLI
-    :'vbv_maxrate' => '4500',
-    :'vbv_bufsize' => '3000',
-    :'threads' => 'auto',
-    :'ref' => '6',
-    :'subq' => '6',
-    :'me' => 'umh',
-    :'no-fast-pskip' => '1',
-    :'level' => '3.0',
-    :'mixed-refs' => '1',
-    :'merange' => '24',
-    :'direct' => 'auto',
-    :'analyse' => 'all',
+  # x264opts will be passed to the '-x' argument of HandBrakeCLI
+  # I took these from the advanced tab of the HandBrake 0.9.5 x86_64 (2011010300) GUI for the AppleTV preset
+  x264opts = {
     :'cabac' => '0',
-    :'bframes' => '0' }
+    :'ref' => '6',
+    :'me' => 'umh',
+    :'b-pyramid' => 'none',
+    :'b-adapt' => '2',
+    :'weightb' => '0',
+    :'trellis' => '0',
+    :'weightp' => '0',
+    :'vbv-maxrate' => '9500',
+    :'vbv-bufsize' => '9500' }
 
   options = {
     :'-i' => %{"#{input}"},
@@ -55,8 +53,6 @@ def quick_encode(input, quality=19)
     :'-Y' => '720',
     :'-e' => 'x264',
     :'-q' => quality,
-    :'-2' => nil,
-    :'-T' => nil,
     :'--loose-anamorphic' => nil,
     :'-x' => x264opts.map{|k,v| "#{k}=#{v}"}.join(':') }
 
