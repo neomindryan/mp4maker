@@ -8,48 +8,72 @@
 #   subler (for muxing subtitles into mp4)
 #     http://code.google.com/p/subler/
 #   mkvtoolnix (for exploring mkv files & extracting tracks)
-#     sudo port install mkvtoolnix # has a lot of dependencies
+#     brew install mkvtoolnix # has a lot of dependencies
 #   HandBrakeCLI (for transcoding audio & video tracks)
 #     http://handbrake.fr/?article=download
 
 # this uses the original file size as the target size, which is a cheap way to get similar quality
 #   quickEncode was originally a bash alias to HandBrakeCLI with default conversion settings for A/V by Matt Stocum
-def quick_encode(*args)
-  args.each do |input|
-    output = input.gsub(/\.[^.]*$/, '.m4v')
-    filesize = `BLOCKSIZE=1048576 du -s "#{input}"`
-    filesize = /(\d+).*/.match(filesize)[1]
-    raise "Couldn't determine size of #{input}" unless /\d+/.match(filesize)
+#  @param quality Matt recommends 20 for HD, 19 for DVD content (19 is better)
+def quick_encode(input, quality=19)
+  output = input.gsub(/\.[^.]*$/, '.m4v')
 
-    pcm_input = nil
-    # extract the audio to PCM with ffmpeg first because sometimes HandBrakeCLI has problems
-#     pcm_input = "#{input}-temp.avi"
-#     command = <<-EOS
-#       nice -n 19 ffmpeg -i "#{input}" -acodec adpcm_ms -vcodec copy "#{pcm_input}"
-#     EOS
-#     input = pcm_input # we no longer care about the original.
-#     command = command.strip
-#     # log.info "Extracting audio to PCM with ffmpeg..."
-#     puts "Prepping with ffmpeg using: #{command}"
-#     system(command)
+  # TODO Next time this is needed, make the options below detect its use.
+  pcm_input = nil
+  # extract the audio to PCM with ffmpeg first because sometimes HandBrakeCLI has problems
+  # pcm_input = "#{input}-temp.avi"
+  # command = <<-EOS
+  #   nice -n 19 ffmpeg -i "#{input}" -acodec adpcm_ms -vcodec copy "#{pcm_input}"
+  # EOS
+  # input = pcm_input # we no longer care about the original.
+  # command = command.strip
+  # # log.info "Extracting audio to PCM with ffmpeg..."
+  # puts "Prepping with ffmpeg using: #{command}"
+  # system(command)
 
-    # Now transcode the video and re-mux / transcode in the audio extracted by ffmpeg
-    command = <<-EOS
-      nice -n 19 /usr/local/bin/HandBrakeCLI -i "#{input}" -o "#{output}" --crop 0:0:0:0 -X 1280 -Y 720 -e x264 -S #{filesize} -2 -T --loose-anamorphic \
-        -x 'vbv_maxrate=4500:vbv_bufsize=3000:threads=auto:ref=6:subq=6:me=umh:no-fast-pskip=1:level=3.0:mixed-refs=1:merange=24:direct=auto:analyse=all:cabac=0:bframes=0'
-    EOS
-    command = command.strip
-    # puts "doing it!: #{command}"
-    system(command) # backticks wont work here.
+  x264opts = { # these will be passed to the '-x' argument of HandBrakeCLI
+    :'vbv_maxrate' => '4500',
+    :'vbv_bufsize' => '3000',
+    :'threads' => 'auto',
+    :'ref' => '6',
+    :'subq' => '6',
+    :'me' => 'umh',
+    :'no-fast-pskip' => '1',
+    :'level' => '3.0',
+    :'mixed-refs' => '1',
+    :'merange' => '24',
+    :'direct' => 'auto',
+    :'analyse' => 'all',
+    :'cabac' => '0',
+    :'bframes' => '0' }
 
-    # if we're using the intermediate pcm-audio step, clean up after ourselves.
-    if pcm_input
-      # log.info "Cleaning up ffmpeg intermediate step..."
-      File.delete(pcm_input)
-    end
-  end # args.each
+  options = {
+    :'-i' => %{"#{input}"},
+    :'-o' => %{"#{output}"},
+    :'--crop' => '0:0:0:0',
+    :'-X' => '1280',
+    :'-Y' => '720',
+    :'-e' => 'x264',
+    :'-q' => quality,
+    :'-2' => nil,
+    :'-T' => nil,
+    :'--loose-anamorphic' => nil,
+    :'-x' => x264opts.map{|k,v| "#{k}=#{v}"}.join(':') }
+
+  # Now transcode the video and re-mux / transcode in the audio extracted by ffmpeg
+  command = "nice -n 19 HandBrakeCLI #{options.map{|k,v| "#{k} #{v}"}.join(" ")}"
+  command = command.gsub(/ +/, ' ').strip
+  # puts "doing it!: #{command}"
+  system(command) # backticks wont work here.
+
+  # if we're using the intermediate pcm-audio step, clean up after ourselves.
+  if pcm_input
+    # log.info "Cleaning up ffmpeg intermediate step..."
+    File.delete(pcm_input)
+  end
 end # quick_encode
 
+# TODO add support for multiple subtitle tracks
 class MkvFile
   attr_reader :filename, :base_name, :subtitle_type, :srt_file, :ass_file, :log
   def initialize(filename, options = {})
