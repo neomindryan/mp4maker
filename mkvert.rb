@@ -98,7 +98,8 @@ class MkvFile
     @srt_id ||= find_id_of_track_type('S_TEXT/UTF8')
   end
   def srt_file
-    srt_track_id ? "#{base_name}.srt" : nil
+    # This file is used wether there's an ASS file or a SRT file.
+    subtitles? ? "#{base_name}.srt" : nil
   end
 
   def ass_track_id
@@ -109,7 +110,7 @@ class MkvFile
   end
 
   def find_id_of_track_type(desired_type)
-    desired_track = `mkvmerge --identify "#{source_file}" | grep '#{desired_type}'`
+    desired_track = `mkvmerge --identify "#{@filename}" | grep '#{desired_type}'`
     track_id = nil
     match = /Track ID (\d+)/.match(desired_track)
     track_id = match[1].to_i if match
@@ -118,7 +119,7 @@ class MkvFile
   def export_ass
     return nil unless subtitle_type == 'ass'
     log.info "Exporting from ASS track #{ass_track_id} ..." if log
-    extract_command = "mkvextract tracks \"#{filename}\" #{ass_track_id}:\"#{ass_file}\""
+    extract_command = "mkvextract tracks \"#{@filename}\" #{ass_track_id}:\"#{ass_file}\""
     `#{extract_command}`
 
     raise "Unable to export file using command #{extract_command}" unless File.exists?(ass_file)
@@ -139,7 +140,7 @@ class MkvFile
   def export_srt
     return nil unless subtitle_type == 'srt'
     log.info "Exporting SRT from track #{srt_track_id} ..." if log
-    extract_command = "mkvextract tracks \"#{source_file}\" #{srt_track_id}:\"#{srt_file}\""
+    extract_command = "mkvextract tracks \"#{@filename}\" #{srt_track_id}:\"#{srt_file}\""
     `#{extract_command}`
 
     raise "Unable to export file using command #{extract_command}" unless File.exists?(srt_file)
@@ -183,6 +184,7 @@ unless source_file
   exit
 end
 match = /(.*)\.(mkv|avi)/.match(source_file)
+raise "#{source_file} is not an AVI or MKV file" unless match
 source_base_name = match[1]
 source_type = match[2].downcase
 if m4v_file
