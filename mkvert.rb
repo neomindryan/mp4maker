@@ -35,7 +35,7 @@ def quick_encode(input, quality=19)
   # I took these from the advanced tab of the HandBrake 0.9.5 x86_64 (2011010300) GUI for the AppleTV preset
   x264opts = {
     :'cabac' => '0',
-    :'ref' => '6',
+    :'ref' => '2',
     :'me' => 'umh',
     :'b-pyramid' => 'none',
     :'b-adapt' => '2',
@@ -54,6 +54,7 @@ def quick_encode(input, quality=19)
     :'-e' => 'x264',
     :'-q' => quality,
     :'--loose-anamorphic' => nil,
+    :'--markers' => nil, # chapter markers
     :'-x' => x264opts.map{|k,v| "#{k}=#{v}"}.join(':') }
 
   # Now transcode the video and re-mux / transcode in the audio extracted by ffmpeg
