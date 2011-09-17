@@ -12,10 +12,38 @@
 #   HandBrakeCLI (for transcoding audio & video tracks)
 #     http://handbrake.fr/?article=download
 
+def quick_encode(input, options={})
+  log = options[:log]
+  force_transcode = options.delete(:force_transcode)
+
+  if options[:source_type] != 'mkv' || force_transcode
+    log.info("Transcode forced") if force_transcode
+    log.info("Source file was of type #{options[:source_type]}; transcoding.") if options[:source_type] != 'mkv'
+    quick_transcode(input, options)
+    return
+  end
+  mkvfile = MkvFile.new(input)
+  if mkvfile.can_be_repackaged_as_mp4?
+    log.info("File seems like it can be repackaged; using quick_rewrap")
+    quick_rewrap(input, options)
+  else
+    log.info("File does not seem like it can be repackaged; using quick_transcode")
+    quick_transcode(input, options)
+  end
+end
+
+# Use SublerCLI to repackage the file as an mp4
+def quick_rewrap(input, options={})
+  command = "SublerCLI -i '#{input}' -O -l English -o '#{input.gsub(/\.[^.]+$/i, '')}.m4v'"
+  exec command
+end
+
 # this uses the original file size as the target size, which is a cheap way to get similar quality
 #   quickEncode was originally a bash alias to HandBrakeCLI with default conversion settings for A/V by Matt Stocum
 #  @param quality Matt recommends 20 for HD, 19 for DVD content (19 is better)
-def quick_encode(input, quality=19)
+def quick_transcode(input, options={})
+  quality = options[:quality] || 19
+  log = options[:log]
   output = input.gsub(/\.[^.]*$/, '.m4v')
 
   # TODO Next time this is needed, make the options below detect its use.
@@ -68,6 +96,23 @@ def quick_encode(input, quality=19)
     # log.info "Cleaning up ffmpeg intermediate step..."
     File.delete(pcm_input)
   end
+
+  if options[:source_type] == "mkv"
+    mkv_options = []
+    mkvoptions[:log] = log if log
+    mkv_file = MkvFile.new(source_file, mkv_options)
+    ##### TODO extract any chapter info and import it
+
+    if mkv_file.subtitles?
+      srt_file = mkv_file.export_subtitles_as_srt
+
+      ##### Mux the M4V and SRT files
+      log.info "Muxing subtitles into .M4V file '#{m4v_file}' ..." if log
+      `SublerCLI -i "#{m4v_file}" -s "#{srt_file}"`
+
+      mkv_file.cleanup_subtitle_files
+    end
+  end
 end # quick_encode
 
 # TODO add support for multiple subtitle tracks
@@ -79,6 +124,12 @@ class MkvFile
     raise "Invalid filename #{filename}" unless @base_name = match[1]
     raise "source file is not an MKV file" unless match[2].downcase == 'mkv'
     @log = options[:log]
+  end
+
+  # TODO this will likely need to get smarter.
+  def can_be_repackaged_as_mp4?
+    # If there's an mp4 track, assume this can be rewrapped as an mp4
+    !find_id_of_track_type("V_MPEG4/ISO/AVC").nil?
   end
 
   def subtitles?
@@ -201,20 +252,5 @@ elsif m4v_file.nil? # Transcode the m4v file if one wasn't specified.
   m4v_base_name = source_base_name
   m4v_file = m4v_base_name + ".m4v"
   log.info "Transcoding #{source_type} file to m4v"
-  quick_encode(source_file)
-end
-
-if source_type == "mkv"
-  mkv_file = MkvFile.new(source_file, :log => log)
-  ##### TODO extract any chapter info and import it
-
-  if mkv_file.subtitles?
-    srt_file = mkv_file.export_subtitles_as_srt
-
-    ##### Mux the M4V and SRT files
-    log.info "Muxing subtitles into .M4V file '#{m4v_file}' ..."
-    `SublerCLI -i "#{m4v_file}" -s "#{srt_file}"`
-
-    mkv_file.cleanup_subtitle_files
-  end
+  quick_encode(source_file, :log => log, :source_type => source_type)
 end
