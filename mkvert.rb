@@ -229,10 +229,17 @@ if ARGV.delete("-s")
   log.level = Logger::ERROR
 end
 
-source_file = ARGV[0]
-m4v_file = ARGV[1]
+if ARGV[0] == '-f'
+  force_transcode = true
+  source_file = ARGV[1]
+  m4v_file = ARGV[2]
+else
+  force_transcode = false
+  source_file = ARGV[0]
+  m4v_file = ARGV[1]
+end
 unless source_file
-  log.error "Syntax:\n\tmkvert <source_file[.mkv|avi]> [m4v_file[.m4v]]"
+  log.error "Syntax:\n\tmkvert [-f] <source_file[.mkv|avi]> [m4v_file[.m4v]]\n\tOR\n\tmkvert <directory containing avi and/or mkv files>"
   exit
 end
 match = /(.*)\.(mkv|avi)/.match(source_file)
@@ -252,5 +259,5 @@ elsif m4v_file.nil? # Transcode the m4v file if one wasn't specified.
   m4v_base_name = source_base_name
   m4v_file = m4v_base_name + ".m4v"
   log.info "Transcoding #{source_type} file to m4v"
-  quick_encode(source_file, :log => log, :source_type => source_type)
+  quick_encode(source_file, :log => log, :source_type => source_type, :force_transcode => force_transcode)
 end
