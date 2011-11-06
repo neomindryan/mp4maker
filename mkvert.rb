@@ -126,10 +126,10 @@ class MkvFile
     @log = options[:log]
   end
 
-  # TODO this will likely need to get smarter.
+  # this will likely need to get smarter.
   def can_be_repackaged_as_mp4?
     # If there's an mp4 track, assume this can be rewrapped as an mp4
-    !find_id_of_track_type("V_MPEG4/ISO/AVC").nil?
+    !!(find_id_of_track_type('V_MPEG4/ISO/AVC') && find_id_of_track_type('A_AAC'))
   end
 
   def subtitles?
