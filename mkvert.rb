@@ -242,8 +242,9 @@ unless source_file
   log.error "Syntax:\n\tmkvert [-f] <source_file[.mkv|avi]> [m4v_file[.m4v]]\n\tOR\n\tmkvert <directory containing avi and/or mkv files>"
   exit
 end
-match = /(.*)\.(mkv|avi)/.match(source_file)
-raise "#{source_file} is not an AVI or MKV file" unless match
+# TODO if the source file is a folder, transcode all avi and mkv files in it.
+match = /(.*)\.(mkv|avi|mov)/i.match(source_file)
+raise "#{source_file} is not an AVI, MKV or MOV file" unless match
 source_base_name = match[1]
 source_type = match[2].downcase
 if m4v_file
